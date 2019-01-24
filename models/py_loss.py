@@ -10,7 +10,8 @@ class ComposeLoss(nn.Module):
         super(ComposeLoss,self).__init__()
         self.eps = eps
 
-    def forward(self,a_pred,fg,bg,gt_merge,mask):
+    def forward(self,y_pred,y):
+        #a_pred,fg,bg,gt_merge,mask):
         """
         compute the compose loss
         :param a_pred: the encoder_decoder predict alpha
@@ -20,7 +21,7 @@ class ComposeLoss(nn.Module):
         :param mask:    the unknown region mask (0,1) binary mask mat
         :return:        the matting region compose loss
         """
-        
+
         pass
 
 class AlphaPredLoss(nn.Module):
@@ -29,7 +30,8 @@ class AlphaPredLoss(nn.Module):
         super(AlphaPredLoss,self).__init__()
         self.eps=eps
 
-    def forward(self, a_pred,a_gt,mask):
+    def forward(self, ypred,y):
+        #a_pred,a_gt,mask):
         """
         compute the encoder-decoder or refine head alpha loss
         :param a_pred: the encoder decoder or refine_head output alpha,value in (0,1) float32
