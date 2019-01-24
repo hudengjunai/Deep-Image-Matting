@@ -1,6 +1,8 @@
 import torch
 from torch import nn
-from pretrain_keys_pair import pairs_keys
+if __name__=='__main__':
+    from pretrain_keys_pair import pairs_keys
+from .pretrain_keys_pair import pairs_keys
 class conv2DBatchNormRelu(nn.Module):
     def __init__(
         self,
@@ -156,12 +158,13 @@ class Encoder_Decoder(nn.Module):
     def load_vggbn(self,file):
         state_dict = torch.load(file)
         origin_keys = state_dict.keys()
-        struct_dict = torch.load('./checkpoints/struct.pth')
+
+        struct_dict = self.state_dict() #torch.load('./checkpoints/struct.pth')
         p0 = pairs_keys[0]
         #conv filters
         origin_conv0 = state_dict[p0[0]]
         addChn_conv0 = struct_dict[p0[1]]
-        addChn_conv0.data.zero_()
+        addChn_conv0.data.zero_() #set all the alpha channel filters zero
         addChn_conv0.data[:,0:3,:,:]=origin_conv0.data
 
         #all other data insert
@@ -170,15 +173,11 @@ class Encoder_Decoder(nn.Module):
             struct_dict[k2].data = state_dict[k1].data
         self.load_state_dict(struct_dict)
 
-        print("finished add parameters")
-
-
-
-
 
 
 if __name__=='__main__':
     model = Encoder_Decoder(stage=0)
+    #this is a pre stored random params
     torch.save(model.state_dict(),'./checkpoints/struct.pth')
     model.load_vggbn('./checkpoints/vgg16_bn-6c64b313.pth')
     x = torch.rand(2,4,320,320)

@@ -1,1 +1,1 @@
-from .visulization import  Visulizer
+from .visulization import Visulizer

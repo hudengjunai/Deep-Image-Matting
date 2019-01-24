@@ -130,7 +130,7 @@ class AdobeDataset(Dataset):
         image =torch.tensor(merged).div(255)
         image.sub_(torch.tensor(mean)).div_(torch.tensor(std))
 
-        data[:,:,0:3] = image# firset three rgb channel
+        data[:,:,0:3] = image # firset three rgb channel
         data[:,:,3] = torch.tensor(trimap)  # last channel is trimap
 
         label[:,:,0:3] = torch.tensor(bg)

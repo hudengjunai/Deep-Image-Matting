@@ -6,3 +6,4 @@
 *.png
 data/adobe_data
 checkpoints
+*.pyc
