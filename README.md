@@ -1,10 +1,10 @@
 #### This is an implementation for paper [Deep Image Matting](http://arxiv.org/abs/1703.03872)  
 - Deep image matting is a learning method to estimate the alpha matting params for fg,bg,merged and trimap   
-- This project is base on pytorch to train the matting model.    
--- data/py_adobe_data.py .the online fg/bg alpha merge data,compose COCO 2014 train and Matting Datasets   
--- models/py_encoder_decoder.py. The model define ,vgg encoder and unpooling/conv decoder.   
--- train_encoder_decoder.py. The train stage define, encoder-decoder/refine-head/over-all,totally three stages.  
--- utils/visulization.py. The loss and image vis module
+- 该项目基于pytorch实现，主要的数据，模型，损失函数，训练策略介绍如下：    
+-- [data/py_adobe_data.py](https://github.com/hudengjunai/DeepImageMatting/blob/master/data/py_adobe_data.py) .the online fg/bg alpha merge data,compose COCO 2014 train and Matting Datasets   
+-- [models/py_encoder_decoder.py](https://github.com/hudengjunai/DeepImageMatting/blob/master/models/py_encoder_decoder.py). The model define ,vgg encoder and unpooling/conv decoder.   
+-- [train_encoder_decoder.py](https://github.com/hudengjunai/DeepImageMatting/blob/master/train_encoder_decoder.py). The train stage define, encoder-decoder/refine-head/over-all,totally three stages.  
+-- [utils/visulization.py](https://github.com/hudengjunai/DeepImageMatting/blob/master/utils/visulization.py). The loss and image vis module
 
 
 #### 项目简介
@@ -58,5 +58,29 @@ DeepImageMatting$ python train_encoder_decoder.py --params
 - 第三阶段：整体进行训练，整体结构类似一个残差块。
 ```
 
--- 训练过程记录：  
- - to do task
+### 训练过程记录：  
+#### Doing list
+ - 在第一阶段encoder-decoder训练时，因为alpha prediction loss和compositional loss 的数量级不一样，采用文中作者提出的两种loss加起来，
+ 会导致无法收敛，一直震荡的状态，通过观察梯度发现梯度很小，根据论文中实验部分描述，采用alpha-prediction loss来train，会收敛。  
+ 
+ 
+ - 需要尝试双线性插值和unpooling对训练的影响  
+ [medium 博客,unpooling和deconv](https://towardsdatascience.com/review-deconvnet-unpooling-layer-semantic-segmentation-55cf8a6e380e)
+ [unpooling介绍](https://jinzequn.github.io/2018/01/28/deconv-and-unpool/)
+ ```python
+unpooling deconv 的使用在SegNet等网络中
+```
+ - 需要训练encoder-decoder中间衔接的trans模块，卷积核大小，当前采用一个3x3和1x1(具体参见py_encoder_decoder.py的trans部分) 
+ ```python
+class transMap(nn.Module):
+    def __init__(self):
+        super(transMap,self).__init__()
+        self.conv1 = conv2DBatchNormRelu(512,512,3,1,1)
+        self.conv2 = conv2DBatchNormRelu(512,512,1,1,0)
+
+    def forward(self, x):
+        return self.conv2(self.conv1(x))
+``` 
+ - encoder的输入为合成图RGB和trimap通道，RGB通道按照之前totensor和normalize操作，
+ trimap在当前数据集为（0，128，255）三个取值，其数值量级不一致，需要对trimap采用归一化的方法，当前采用 除以255，减去0.5均值，除以0.5的方式  
+ -
