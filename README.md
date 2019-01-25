@@ -16,7 +16,8 @@
             
 ```
 ### 单模块测试  
-- 数据模块 
+##### 数据模块 
+数据模块的功能性测试，可单独测试
 ```bash
 DeepImageMatting$ python data/py_adobe_data.py
 ```
@@ -31,17 +32,19 @@ DeepImageMatting$ python data/py_adobe_data.py
         label[:,:,10] = torch.tensor(mask) #unknown region区域的掩码
         
 ```
-- 模型模块  
+##### 模型模块  
+模型部分包括encoder-decoder，encoder-decoder-refinehead 残差结构，都可以使用以下语句测试
 ```bash
 DeepImageMatting$ python models/py_encoder_decoder.py #测试模型计算
 论文种对于Unpooling 和Deconv介绍不是很清晰，针对SegNet网络种的介绍，可以在vgg maxpooling时保留Max的位置索引，在上采样时进行赋值。  
 上采样有若干种方法：双线性插值（可学习），双线性插值（不可学习），转置卷积（反卷积，stride大于1），reverse maxpooling等方式，当前实现种采用反向maxpooling的方式
 
 ```
--- 模型与训练参数加载  
+##### 模型与训练参数加载  
 matting网络的encoder部分采用的vgg_bn16的参数，需要将对应参数灌入当前模型，具体参见models/py_encoder_decoder.py 中load_vggbn 函数  
 
--- 损失函数  
+##### 损失函数  
+损失函数分为两种，参考论文中提出的alpha-prediction loss 和 Compositional loss 计算方式可参见内部loss类型
 ```bash
 DeepImageMatting$ python models/py_loss.py #测试损失函数
 对于论文中提出的损失函数有两个：  
@@ -49,7 +52,8 @@ DeepImageMatting$ python models/py_loss.py #测试损失函数
 - compose损失，使用matting预测参数合成的图片和原本真实合成图片的mse差值 。具体参见 ComposeLoss
 ```
 
--- 训练模块  
+##### 训练模块  
+所有的三个阶段的训练模块都集中在自定义类Trainer中，分为初始化：设置数据模型损失函数训练策略，训练，验证主要的模块
 ```bash
 DeepImageMatting$ python train_encoder_decoder.py --params  
 其中stage为阶段参数： 
@@ -62,7 +66,7 @@ DeepImageMatting$ python train_encoder_decoder.py --params
 #### Doing list
  - 在第一阶段encoder-decoder训练时，因为alpha prediction loss和compositional loss 的数量级不一样，采用文中作者提出的两种loss加起来，
  会导致无法收敛，一直震荡的状态，通过观察梯度发现梯度很小，根据论文中实验部分描述，采用alpha-prediction loss来train，会收敛。  
- 
+ ![avatar](./docs/single_alpah_prediction_loss.jpg)
  
  - 需要尝试双线性插值和unpooling对训练的影响  
  [medium 博客,unpooling和deconv](https://towardsdatascience.com/review-deconvnet-unpooling-layer-semantic-segmentation-55cf8a6e380e)
