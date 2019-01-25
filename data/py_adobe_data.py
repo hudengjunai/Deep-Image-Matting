@@ -20,12 +20,13 @@ default_transform = T.Compose([T.ToTensor(),
 
 class AdobeDataset(Dataset):
 
-    def __init__(self,usage,size=320,transform=default_transform):
+    def __init__(self,usage,size=320,transform=default_transform,stand = True):
         super(AdobeDataset,self).__init__()
         self.kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
         self.transform = transform
         self.size = size
         self.usage = usage
+        self.stand = stand
         filename = './data/adobe_data/{}_names.txt'.format(usage) # just store the image index for save
         with open(filename, 'r') as f:
             self.names = f.read().splitlines()
@@ -104,7 +105,7 @@ class AdobeDataset(Dataset):
 
 
         data = torch.empty(size=(self.size,self.size,4),dtype=torch.float32)
-        label = torch.empty(size=(self.size,self.size,11),dtype=torch.float32)
+
 
         #safe crop and resize
         # Flip array left to right randomly (prob=1:1)
@@ -133,15 +134,25 @@ class AdobeDataset(Dataset):
         data[:,:,0:3] = image # firset three rgb channel
         data[:,:,3] = torch.tensor(trimap).div(255).sub_(0.5).div_(0.5) # last channel is trimap
 
-        label[:,:,0:3] = torch.tensor(bg)
-        label[:,:,3:6] = torch.tensor(fg)
-        label[:,:,6:9] = torch.tensor(merged)
-        label[:,:,9:10] = torch.tensor(alpha.reshape(self.size,self.size,1))
-        label[:,:,10] = torch.tensor(mask)
+        if self.stand:
+            label = torch.empty(size=(self.size, self.size, 11), dtype=torch.float32)
+            label[:,:,0:3] = torch.tensor(bg)
+            label[:,:,3:6] = torch.tensor(fg)
+            label[:,:,6:9] = torch.tensor(merged)
+            label[:,:,9:10] = torch.tensor(alpha.reshape(self.size,self.size,1))
+            label[:,:,10] = torch.tensor(mask)
 
-        data = data.transpose(0, 1).transpose(0, 2).contiguous()
-        label = label.transpose(0, 1).transpose(0, 2).contiguous()
-        return data,label
+            data = data.transpose(0, 1).transpose(0, 2).contiguous()
+            label = label.transpose(0, 1).transpose(0, 2).contiguous()
+            return data,label
+        else:
+            bg = torch.tensor(bg.transpose(2,0,1))
+            fg = torch.tensor(fg.transpose(2,0,1))
+            merged = torch.tensor(merged.transpose(2,0,1))
+            alpha = torch.tensor(alpha.reshape(1,self.size,self.size))
+            mask = torch.tensor(mask.reshape(1,self.size,self.size))
+            return data,bg,fg,merged,alpha,mask
+
 
     def random_choice(self,trimap, crop_size):
         crop_height, crop_width = crop_size
@@ -173,14 +184,15 @@ class AdobeDataset(Dataset):
             ret = cv2.resize(ret, dsize=fixed, interpolation=cv2.INTER_NEAREST)
         return ret
 
-def get_train_val_dataloader(batch_size,num_workers):
-    train_dataset = AdobeDataset(usage='train')
-    val_dataset = AdobeDataset(usage='valid')
+def get_train_val_dataloader(batch_size,num_workers,stand=True):
+    train_dataset = AdobeDataset(usage='train',stand=stand)
+    val_dataset = AdobeDataset(usage='valid',stand=stand)
     train_loader = DataLoader(train_dataset,batch_size=batch_size,num_workers=num_workers)
     valid_loader = DataLoader(val_dataset,batch_size=batch_size,num_workers=num_workers)
     return train_loader,valid_loader
 
 if __name__=='__main__':
+    import time
     """ this is the dataset test
     run in DeepMatting_MXNet root directory path"""
     train_dataset = AdobeDataset(usage='train')
@@ -196,11 +208,12 @@ if __name__=='__main__':
         if i==3:
             break
     print("test valid dataset finished")
-
-    train_loader,valid_loader = get_train_val_dataloader(4,10)
-    for i,(x,y) in enumerate(train_loader):
-        print(x.shape)
-        print(y.shape)
-        if i==4:
-            break
-    print("test dataloader finished")
+    catagory = [True,False]
+    for std in catagory:
+        train_loader,valid_loader = get_train_val_dataloader(4,10,stand=std)
+        start = time.time()
+        for i,data in enumerate(train_loader):
+            if i==100:
+                break
+        duration = time.time()-start
+        print("time used duration {0} for {1} mode".format(duration,str(std)))

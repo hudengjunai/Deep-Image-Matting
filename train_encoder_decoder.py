@@ -29,6 +29,7 @@ def parse_args():
     parser.add_argument('--last_epoch',type=int,default=-1)
     parser.add_argument('--freq',type=int,default=20)
     parser.add_argument('--debug',action='store_true', default= False,help='if debug mode')
+    parser.add_argument('--env',type=str,default='super_mali')
     args = parser.parse_args()
     return args
 
@@ -54,7 +55,7 @@ class Trainer(object):
             if not self.args.pretrain_model:
                 self.model.load_vggbn('./checkpoints/vgg16_bn-6c64b313.pth')
             else:
-                self.model.load_state_dict(self.args.pretrain_model)
+                self.model.load_state_dict(torch.load(self.args.pretrain_model))
             self.loss =[ComposeLoss(eps=self.args.eps),AlphaPredLoss(eps=self.args.eps)]
             self.loss_lambda=[torch.tensor(self.args.lmd),torch.tensor(1-self.args.lmd)]
 
@@ -70,7 +71,7 @@ class Trainer(object):
                 {'params': self.model.deconv3.parameters(), 'lr': 1*base_lr},
                 {'params': self.model.deconv2.parameters(), 'lr': 1*base_lr},
                 {'params': self.model.deconv1.parameters(), 'lr': 1*base_lr},
-                {'params': self.model.rawalpha.parameters(),'lr':5*base_lr}
+                {'params': self.model.rawalpha.parameters(),'lr':1*base_lr}
             ],
             lr=self.args.lr,weight_decay=self.args.wd,momentum=self.args.momentum)
             self.lr_schedular = optim.lr_scheduler.MultiStepLR(self.trainer,
@@ -101,7 +102,8 @@ class Trainer(object):
             self.loss_lambda = [x.cuda() for x in self.loss_lambda]
             for x in self.loss:
                 x.cuda()
-        self.vis = Visulizer(env='{0}_{1}_{2}'.format('matting',self.model_name,time.strftime('%m_%d')))
+        self.vis = Visulizer(env='{0}_{1}_{2}_{3}'.format('matting',self.model_name,time.strftime('%m_%d'),self.args.env))
+        self.vis.log(str(self.args))
 
 
     def training(self,epoch):
@@ -140,6 +142,20 @@ class Trainer(object):
                 step_loss = total_loss - prev_loss
                 self.vis.plot('fre_loss',step_loss//self.freq)
                 prev_loss = total_loss
+                #the trainning procedure visulization result
+                if self.stage==0 and i%(self.freq*2)==(self.freq*2-1):
+                    bg = label[:, :3, :, :]
+                    fg = label[:, 3:6, :, :]
+                    compose = al_pred[0]*fg+(1-al_pred[0])*bg
+                    for j,(alpha,y,pre_compose) in enumerate(zip(al_pred[0],label,compose)):
+                        self.vis.img('bg_{0}'.format(j),y[0:3].detach().cpu().numpy())
+                        self.vis.img('fg_{0}'.format(j),y[3:6].detach().cpu().numpy())
+                        self.vis.img('merged_{0}'.format(j),y[6:9].detach().cpu().numpy())
+                        self.vis.img('gt_alpha_{0}'.format(j),y[9:10].detach().cpu().numpy())
+                        self.vis.img('compose_{0}'.format(j),pre_compose.detach().cpu().numpy())
+                        self.vis.img('alpha_{0}'.format(j),alpha.detach().cpu().numpy())
+                        break
+
                 if self.args.debug and i//self.freq==1:
                     break
         self.vis.plot("total_loss",total_loss)
@@ -170,7 +186,7 @@ class Trainer(object):
 
 
     def save_model(self,epoch):
-        file_name = './checkpoints/{0}_{1}_{2}.params'.format(self.model_name,time.strftime('%m_%d'),str(epoch))
+        file_name = './checkpoints/{0}_{1}_{2}_{3}.params'.format(self.model_name,time.strftime('%m_%d'),str(epoch),self.args.env)
         torch.save(self.model.state_dict(), file_name)
 
     def metric_mse(self,alpha_pred,label):

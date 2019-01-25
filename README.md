@@ -9,6 +9,8 @@
 
 #### 项目简介
 -- 数据集，数据集使用在线合成的方法。具体存放路径如下所示：  
+需要修改 [data/py_adobe_data.py](https://github.com/hudengjunai/DeepImageMatting/blob/master/data/py_adobe_data.py) 中数据位置
+1.将CombineDataset的前景数据和背景数据文件夹拷贝到一起。
 ```buildoutcfg
             self.a_path = './data/adobe_data/trainval/alpha' #alpha 存放路径，将Train数据的alpha和Others数据的alpha收集一起存放这里
             self.fg_path = './data/adobe_data/trainval/fg/' #同上， 存储前景数据，共439张
@@ -63,28 +65,38 @@ DeepImageMatting$ python train_encoder_decoder.py --params
 ```
 
 ### 训练过程记录：  
-#### Doing list
+#### Doing list 需要实验的任务
  - 在第一阶段encoder-decoder训练时，因为alpha prediction loss和compositional loss 的数量级不一样，采用文中作者提出的两种loss加起来，
  会导致无法收敛，一直震荡的状态，通过观察梯度发现梯度很小，根据论文中实验部分描述，采用alpha-prediction loss来train，会收敛。  
- ![avatar](./docs/single_alpah_prediction_loss.jpg)
+ ![avatar](./docs/single_alpah_prediction_loss.jpg)  
+ ![avatar](./docs/exampl1.jpg)
+ ![avatar](./docs/example2.jpg)
+ 
+ - 训练过程中可视化 前景背景，合成图和alpha数值
  
  - 需要尝试双线性插值和unpooling对训练的影响  
  [medium 博客,unpooling和deconv](https://towardsdatascience.com/review-deconvnet-unpooling-layer-semantic-segmentation-55cf8a6e380e)
  [unpooling介绍](https://jinzequn.github.io/2018/01/28/deconv-and-unpool/)
- ```python
-unpooling deconv 的使用在SegNet等网络中
-```
+     ```python
+    unpooling deconv 的使用在SegNet等网络中
+    ```
  - 需要训练encoder-decoder中间衔接的trans模块，卷积核大小，当前采用一个3x3和1x1(具体参见py_encoder_decoder.py的trans部分) 
- ```python
-class transMap(nn.Module):
-    def __init__(self):
-        super(transMap,self).__init__()
-        self.conv1 = conv2DBatchNormRelu(512,512,3,1,1)
-        self.conv2 = conv2DBatchNormRelu(512,512,1,1,0)
-
-    def forward(self, x):
-        return self.conv2(self.conv1(x))
-``` 
+    ```python
+    class transMap(nn.Module):
+        def __init__(self):
+            super(transMap,self).__init__()
+            self.conv1 = conv2DBatchNormRelu(512,512,3,1,1)
+            self.conv2 = conv2DBatchNormRelu(512,512,1,1,0)
+    
+        def forward(self, x):
+            return self.conv2(self.conv1(x))
+    ``` 
  - encoder的输入为合成图RGB和trimap通道，RGB通道按照之前totensor和normalize操作，
  trimap在当前数据集为（0，128，255）三个取值，其数值量级不一致，需要对trimap采用归一化的方法，当前采用 除以255，减去0.5均值，除以0.5的方式  
- -
+ - 需要尝试使用skip-connection之后的区别  
+ 结合U-Net和SegNet等分割网络中跳层连接的形式，结合encoder浅层的语义，提升matting效果
+ - 需要结合最新的BiSeNet等分割网络的技巧来提升matting效果 
+ 
+ #### Note
+ - 如果有疑问的话，可以联系 hudengjunai@gmail.com
+ 
