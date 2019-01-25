@@ -24,7 +24,7 @@ class conv2DBatchNormRelu(nn.Module):
             padding=padding,
             stride=stride,
             bias=bias,
-            dilation=dilation,
+            dilation=dilation
         )
 
         if is_batchnorm:

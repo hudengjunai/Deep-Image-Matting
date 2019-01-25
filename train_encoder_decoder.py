@@ -15,11 +15,11 @@ def parse_args():
     """Training Options for Segmentation Experiments"""
     parser = argparse.ArgumentParser(description='Pytorch learning args')
     parser.add_argument('--stage',type=int,default=0)
-    parser.add_argument('--batch_size',type=int,default=4)
+    parser.add_argument('--batch_size',type=int,default=16)
     parser.add_argument('--num_workers',type=int,default=10)
     parser.add_argument('--crop_size',type=int,default=320)
     parser.add_argument('--epochs',type=int,default=50)
-    parser.add_argument('--lr',type=float,default=0.001)
+    parser.add_argument('--lr',type=float,default=0.0001)
     parser.add_argument('--wd',type=float,default=1e-5)
     parser.add_argument('--momentum',type=float,default=0.9)
     parser.add_argument('--gpu',type=str,default='2')
@@ -108,21 +108,37 @@ class Trainer(object):
         self.model.train(mode=True)
         train_loss = 0.0
         total_loss,prev_loss = 0,0
+        self.lr_schedular.step()
         for i,(data,label) in enumerate(self.train_loader):
-            self.lr_schedular.step()
             if torch.cuda.is_available():
                 data,label = data.cuda(),label.cuda()
             self.trainer.zero_grad()
             al_pred = self.model(data)
-            l_loss = self.loss_lambda[0]*self.loss[0](al_pred[0],label)
-            if len(self.loss)==2:
-                l_loss += self.loss_lambda[1]*self.loss[1](al_pred[1],label)
+            if self.stage==0:
+                #loss1 = self.loss_lambda[0]*self.loss[0](al_pred[0],label) #compose loss
+                loss2 = self.loss_lambda[1]*self.loss[1](al_pred[0],label) # alpha mse loss
+                l_loss = loss2#loss1+
+            elif self.stage==1:
+                l_loss = self.loss_lambda[0]*self.loss[0](al_pred[1],label)
+            else:
+                l_loss = self.loss_lambda[0]*self.loss[1](al_pred[1],label)
+
             l_loss.backward()
+            if self.args.debug:
+                params = [p for p in self.model.parameters()]
+                grad = torch.tensor(0.0).cuda()
+                for param in params:
+                    if not param.grad is None:
+                        grad += torch.sum(torch.abs(param.grad))
+                    else:
+                        print("none grad")
+                print("the grad of this iter",grad,"loss",l_loss.item())
+
             self.trainer.step()
             total_loss += l_loss.item()
             if i%self.args.freq==(self.freq-1):
                 step_loss = total_loss - prev_loss
-                self.vis.plot('fre_loss',step_loss)
+                self.vis.plot('fre_loss',step_loss//self.freq)
                 prev_loss = total_loss
                 if self.args.debug and i//self.freq==1:
                     break
@@ -146,7 +162,7 @@ class Trainer(object):
                 sad = self.metric_sad(a_pred,label)
                 mse_total += mse
                 if i%self.args.freq ==(self.args.freq-1):
-                    self.vis.plot('mse_alpha',mse_total/i)
+                    self.vis.log('mse_alpha {0}'.format(mse_total/i))
                     mse_pre = mse_total
                     if self.args.debug and i//self.freq==1:
                         break
@@ -154,8 +170,8 @@ class Trainer(object):
 
 
     def save_model(self,epoch):
-        file_name = '{0}_{1}_{2}.params'.format(self.model_name,time.strftime('%m_%d'),str(epoch))
-        self.model.save_parameters(file_name)
+        file_name = './checkpoints/{0}_{1}_{2}.params'.format(self.model_name,time.strftime('%m_%d'),str(epoch))
+        torch.save(self.model.state_dict(), file_name)
 
     def metric_mse(self,alpha_pred,label):
         """
@@ -185,3 +201,6 @@ if __name__=='__main__':
     for epoch in range(args.last_epoch,args.epochs):
         trainer.training(epoch)
         trainer.validation(epoch)
+        trainer.save_model(epoch)
+    trainer.vis.log('training finished')
+    exit(0)
